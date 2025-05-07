@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <title>Image Timeline Map</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+    <style>
+        #map {
+            height: 100vh;
+        }
+
+        .controls {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 1000;
+        }
+
+        .controls button,
+        .controls input {
+            margin-right: 5px;
+        }
+
+        .leaflet-marker-icon {
+            background: none !important;
+            border: none !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="map"></div>
+
+    <div class="controls">
+        <button id="play">▶️</button>
+        <button id="pause">⏸️</button>
+        <input type="range" id="timeSlider" min="0" max="100" value="0" style="width: 300px;">
+        <span id="timestampDisplay">--</span>
+    </div>
+
+    <script>
+        const map = L.map('map').setView([35.6812, 139.7671], 13);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        // 複数の pane を作成
+        for (let i = 0; i < 2000; i++) {
+            const name = 'pane' + i;
+            map.createPane(name);
+            map.getPane(name).style.zIndex = 400 + i;
+        }
+
+        let imageData = [];
+        let activeMarkers = [];
+        let currentIndex = 0;
+        let intervalId = null;
+
+        // マーカー作成（画像が確実に表示されるよう調整）
+        function createMarker(data, zoom, index) {
+            const baseSize = 100;
+            const size = Math.max(baseSize * (zoom / 13), 20);
+
+            const icon = L.divIcon({
+                html: `<div style="
+          width:${size}px;
+          height:auto;
+          display:flex;
+          justify-content:center;
+          align-items:center;
+        ">
+          <img src="${data.file}" style="
+            max-width:100%;
+            height:auto;
+            border:2px solid white;
+            border-radius:8px;
+            box-shadow:0 0 6px rgba(0,0,0,0.3);
+          ">
+        </div>`,
+                className: 'custom-image-icon',
+                iconSize: null,
+                iconAnchor: [size / 2, size * 0.75]
+            });
+
+            return L.marker([data.lat, data.lng], {
+                icon,
+                pane: 'pane' + index
+            }).addTo(map);
+        }
+
+        function updateMarkers(upToIndex) {
+            activeMarkers.forEach(marker => marker.remove());
+            activeMarkers = [];
+
+            for (let i = 0; i <= upToIndex; i++) {
+                const marker = createMarker(imageData[i], map.getZoom(), i);
+                activeMarkers.push(marker);
+            }
+
+            document.getElementById('timestampDisplay').innerText = imageData[upToIndex]?.timestamp || '--';
+            document.getElementById('timeSlider').value = upToIndex;
+        }
+
+        map.on('zoomend', () => {
+            updateMarkers(currentIndex);
+        });
+
+        document.getElementById('play').onclick = () => {
+            if (intervalId) return;
+            intervalId = setInterval(() => {
+                if (currentIndex < imageData.length - 1) {
+                    currentIndex++;
+                    updateMarkers(currentIndex);
+                } else {
+                    clearInterval(intervalId);
+                    intervalId = null;
+                }
+            }, 1000);
+        };
+
+        document.getElementById('pause').onclick = () => {
+            clearInterval(intervalId);
+            intervalId = null;
+        };
+
+        document.getElementById('timeSlider').oninput = (e) => {
+            currentIndex = parseInt(e.target.value);
+            updateMarkers(currentIndex);
+        };
+
+        // CSV 読み込み
+        fetch('gairon_3_b.csv')
+            .then(response => response.text())
+            .then(csvText => {
+                Papa.parse(csvText, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        imageData = results.data.map(row => ({
+                            file: 'images/' + row.file.trim(),
+                            lat: parseFloat(row.lat),
+                            lng: parseFloat(row.lng),
+                            timestamp: row.timestamp.trim()
+                        })).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+                        document.getElementById('timeSlider').max = imageData.length - 1;
+                        updateMarkers(currentIndex);
+                    }
+                });
+            });
+    </script>
+</body>
+
+</html>
