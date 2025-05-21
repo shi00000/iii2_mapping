@@ -62,8 +62,8 @@
     <script>
         //const map = L.map('map').setView([35.6812, 139.7671], 13);
         const map = L.map('map', {
-                zoomSnap: 0.1,    // ズームの細かさを 0.1 単位に設定
-                zoomDelta: 0.1,   // ズーム操作のステップも 0.1 に
+                zoomSnap: 0.3,    // ズームの細かさを 0.1 単位に設定
+                zoomDelta: 0.3,   // ズーム操作のステップも 0.1 に
                 wheelPxPerZoomLevel: 60  // マウスホイールの感度（デフォルト 60 でOK）
             }).setView([35.6812, 139.7671], 13);
 
@@ -162,7 +162,7 @@
                     clearInterval(intervalId);
                     intervalId = null;
                 }
-            }, 200);
+            }, 50);
         };
 
         document.getElementById('pause').onclick = () => {
